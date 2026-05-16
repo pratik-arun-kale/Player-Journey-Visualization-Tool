@@ -1,0 +1,164 @@
+/* ── Event Log Styling ────────────────────────────────────────────────────── */
+
+.event-log-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1a1a1a;
+  border-left: 1px solid #333;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.event-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+  background: #0f0f0f;
+}
+
+.event-log-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f2f6fb;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.event-count {
+  font-size: 11px;
+  color: #c0d0e0;
+  background: rgba(30, 30, 30, 0.92);
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-family: monospace;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.event-log-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  scroll-behavior: smooth;
+
+  /* Scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: #444 #1a1a1a;
+}
+
+.event-log-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.event-log-content::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.event-log-content::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+.event-log-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.event-log-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
+}
+
+.event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 16px;
+  border-left: 3px solid;
+  border-radius: 0;
+  transition: background-color 0.15s ease;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.event-item:hover {
+  background-color: #252525;
+}
+
+.event-item:nth-child(odd) {
+  background-color: rgba(255, 255, 255, 0.01);
+}
+
+.event-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: fit-content;
+  flex-shrink: 0;
+}
+
+.event-time {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #888;
+  font-weight: 500;
+  min-width: 38px; /* "0:00" width */
+  text-align: right;
+}
+
+.event-icon {
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 1;
+  min-width: 14px;
+  text-align: center;
+}
+
+.event-text {
+  flex: 1;
+  color: #d0d0d0;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* Color-coded text for event types */
+.event-item {
+  /* Border color inherited from border-left-color */
+}
+
+/* Compact mode for many events - less padding */
+@media (max-height: 600px) {
+  .event-item {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+
+  .event-log-header {
+    padding: 8px 12px;
+  }
+
+  .event-time {
+    font-size: 10px;
+    min-width: 35px;
+  }
+}
+
+/* Performance: truncate very long event lists in DOM for better rendering */
+.event-list {
+  /* For large event counts, consider implementing virtual scrolling
+     or windowed rendering to only render visible items in DOM */
+}
