@@ -8,7 +8,7 @@
 
 ## Live Demo
 
-> **[https://player-journey-visualization-tool-ebon.vercel.app/]([https://lila-analyst.vercel.app](https://player-journey-visualization-tool-ebon.vercel.app/))**  ← deployed URL
+> **[https://player-journey-visualization-tool-ebon.vercel.app]([https://lila-analyst.vercel.app](https://player-journey-visualization-tool-ebon.vercel.app/))**  ← deployed URL
 
 ---
 
