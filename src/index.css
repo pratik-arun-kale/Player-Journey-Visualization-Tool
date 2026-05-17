@@ -193,6 +193,29 @@ body {
 .up-text { font-size: 10px; color: var(--text2); line-height: 1.5; }
 .up-text strong { display: block; color: var(--accent); font-size: 11px; }
 
+/* Upload warnings */
+.upload-warning {
+  color: #ff6666;
+  font-weight: 700;
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+/* Upload error banner */
+.upload-error-banner {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 77, 77, 0.06);
+  border: 1px solid rgba(255,77,77,0.12);
+  color: #ffdddd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.upload-error-banner .ueb-title { font-weight: 700; color: #ffdddd; }
+.upload-error-banner .ueb-sub { font-size: 11px; color: #ffdede; margin-bottom: 6px }
+.upload-error-banner .ueb-list { margin: 0; padding-left: 18px; color: #ffecec }
+.upload-error-banner li { margin-bottom: 4px }
+
 /* ── Filters ───────────────────────────────────────────────────────────────── */
 .filter-group { margin-bottom: 8px; }
 .filter-label {
