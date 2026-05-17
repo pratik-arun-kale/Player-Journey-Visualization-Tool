@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useAppState } from './hooks/useAppState'
 import { useFileLoader } from './hooks/useFileLoader'
 import { usePlayback } from './hooks/usePlayback'
@@ -12,6 +12,7 @@ const Timeline = React.lazy(() => import('./components/Timeline').then(m => ({ d
 const StatsPanel = React.lazy(() => import('./components/StatsPanel').then(m => ({ default: m.StatsPanel })))
 const PlayerList = React.lazy(() => import('./components/StatsPanel').then(m => ({ default: m.PlayerList })))
 const EventLog = React.lazy(() => import('./components/EventLog').then(m => ({ default: m.EventLog })))
+import { createCinematicController } from './replay/cinematicController'
 
 import type { FilterMap, FilterDate, Layers } from './types'
 
@@ -33,6 +34,42 @@ export default function App() {
     state.playSpeed,
     dispatch
   )
+
+  // Cinematic mode controller
+  const [cinematicEnabled, setCinematicEnabled] = useState(false)
+  const cinematicRef = useRef<any | null>(null)
+  const prevTimeRef = useRef<number>(state.timelineCurrent)
+
+  useEffect(() => {
+    cinematicRef.current?.dispose?.()
+    cinematicRef.current = createCinematicController({
+      dispatch,
+      events: state.allEvents,
+      getPlaySpeed: () => state.playSpeed,
+      cinematicEnabled: () => cinematicEnabled,
+    })
+    return () => cinematicRef.current?.dispose?.()
+  }, [state.allEvents, dispatch, cinematicEnabled, state.playSpeed])
+
+  useEffect(() => {
+    const prev = prevTimeRef.current
+    const now = state.timelineCurrent
+    cinematicRef.current?.onTimeUpdate?.(prev, now)
+    prevTimeRef.current = now
+  }, [state.timelineCurrent])
+
+  // Space to toggle play/pause
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (state.isPlaying) pause()
+        else play()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [state.isPlaying, play, pause])
 
 
 
@@ -101,6 +138,7 @@ export default function App() {
             layers={state.layers}
             hasMatch={!!state.activeMatchId}
             isLoading={state.isLoadingMatch}
+            cinematicEnabled={cinematicEnabled}
           />
         </React.Suspense>
 
@@ -118,6 +156,9 @@ export default function App() {
                 onPause={pause}
                 onRewind={rewind}
                 onSpeedChange={(v: number) => dispatch({ type: 'SET_PLAY_SPEED', value: v })}
+                events={state.allEvents.map(e => ({ tsRel: e.tsRel, event: e.event }))}
+                cinematicEnabled={cinematicEnabled}
+                onToggleCinematic={(v: boolean) => setCinematicEnabled(v)}
               />
             </div>
 
@@ -127,6 +168,7 @@ export default function App() {
                 currentTime={state.timelineCurrent}
                 isPlaying={state.isPlaying}
                 players={state.players}
+                onSeek={seek}
               />
             </div>
 

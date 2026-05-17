@@ -11,11 +11,15 @@ interface Props {
   onPause: () => void
   onRewind: () => void
   onSpeedChange: (v: number) => void
+  events?: { tsRel: number; event: string }[]
+  cinematicEnabled?: boolean
+  onToggleCinematic?: (v: boolean) => void
 }
 
 export function Timeline({
   current, duration, isPlaying, playSpeed,
   onSeek, onPlay, onPause, onRewind, onSpeedChange,
+  events = [], cinematicEnabled = false, onToggleCinematic,
 }: Props) {
   const barRef = useRef<HTMLDivElement>(null)
 
@@ -65,28 +69,105 @@ export function Timeline({
         onMouseDown={onBarMouseDown}
         onClick={onBarClick}
       >
+        {/* event markers */}
+        {events.map((ev, i) => {
+          const left = duration > 0 ? Math.max(0, Math.min(100, (ev.tsRel / duration) * 100)) : 0
+          const color = ev.event === 'Loot' ? '#ffd700' : (ev.event === 'KilledByStorm' ? '#bf5fff' : '#ff3333')
+          const title = `${ev.event} · ${formatMs(ev.tsRel)}`
+          return (
+            <div
+              key={i}
+              className="tl-event-marker"
+              style={{ left: `${left}%`, background: color }}
+              title={title}
+            />
+          )
+        })}
+
         <div className="tl-fill" style={{ width: `${pct}%` }} />
         <div className="tl-thumb" style={{ left: `calc(${pct}% - 5px)` }} />
       </div>
 
       <div className="pb-controls">
-        <button className="pb-btn" onClick={onRewind} title="Rewind">⏮</button>
-        {isPlaying
-          ? <button className="pb-btn active" onClick={onPause} title="Pause">⏸</button>
-          : <button className="pb-btn" onClick={onPlay}  title="Play">▶</button>
-        }
-        <select
-          className="pb-speed"
-          value={playSpeed}
-          onChange={e => onSpeedChange(parseFloat(e.target.value))}
-        >
-          <option value={0.25}>0.25×</option>
-          <option value={0.5}>0.5×</option>
-          <option value={1}>1×</option>
-          <option value={2}>2×</option>
-          <option value={5}>5×</option>
-          <option value={10}>10×</option>
-        </select>
+        {/* Navigation Controls Group */}
+        <div className="pb-group pb-group-nav">
+          <button
+            className="pb-btn pb-btn-nav"
+            onClick={onRewind}
+            title="Jump to beginning"
+          >
+            <span className="pb-icon">⏮</span>
+            <span className="pb-label">Start</span>
+          </button>
+          
+          <button
+            className="pb-btn pb-btn-nav"
+            onClick={() => onSeek(Math.max(0, current - 250))}
+            title="Step backward 250ms (← Arrow)"
+          >
+            <span className="pb-icon">⬅</span>
+            <span className="pb-label">Step</span>
+          </button>
+          
+          {isPlaying
+            ? <button
+                className="pb-btn pb-btn-nav active"
+                onClick={onPause}
+                title="Pause (Space)"
+              >
+                <span className="pb-icon">⏸</span>
+                <span className="pb-label">Pause</span>
+              </button>
+            : <button
+                className="pb-btn pb-btn-nav"
+                onClick={onPlay}
+                title="Play (Space)"
+              >
+                <span className="pb-icon">▶</span>
+                <span className="pb-label">Play</span>
+              </button>
+          }
+          
+          <button
+            className="pb-btn pb-btn-nav"
+            onClick={() => onSeek(Math.min(duration, current + 250))}
+            title="Step forward 250ms (→ Arrow)"
+          >
+            <span className="pb-icon">➡</span>
+            <span className="pb-label">Step</span>
+          </button>
+        </div>
+        
+        {/* Speed & Mode Controls Group */}
+        <div className="pb-group pb-group-mode">
+          <select
+            className="pb-speed"
+            value={playSpeed}
+            onChange={e => onSpeedChange(parseFloat(e.target.value))}
+            title="Playback speed"
+          >
+            <option value={0.1}>0.1×</option>
+            <option value={0.25}>0.25×</option>
+            <option value={0.5}>0.5×</option>
+            <option value={1}>1×</option>
+            <option value={2}>2×</option>
+            <option value={5}>5×</option>
+            <option value={10}>10×</option>
+          </select>
+
+          <label
+            className={`pb-cinematic ${cinematicEnabled ? 'active' : ''}`}
+            title="Enable cinematic mode: Auto-focus combat areas with smooth camera"
+          >
+            <input
+              type="checkbox"
+              checked={cinematicEnabled}
+              onChange={e => onToggleCinematic && onToggleCinematic(e.target.checked)}
+            />
+            <span className="pb-icon">🎬</span>
+            <span className="pb-label">Cinematic</span>
+          </label>
+        </div>
       </div>
     </div>
   )

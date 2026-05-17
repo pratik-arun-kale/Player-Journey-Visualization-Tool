@@ -20,12 +20,14 @@ interface Props {
   layers: Layers
   hasMatch: boolean
   isLoading?: boolean                // true while loading replay
+  cinematicEnabled: boolean
 }
 
 const CANVAS_SIZE = 1024
 
 export function MapCanvas({
   mapId, players, allEvents, selectedPlayers, cutoffRel, layers, hasMatch, isLoading,
+  cinematicEnabled,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -48,6 +50,7 @@ export function MapCanvas({
   const [pan,  setPan]  = useState({ x: 0, y: 0 })
   const dragging   = useRef(false)
   const dragOrigin = useRef({ mx: 0, my: 0, px: 0, py: 0 })
+  const cinematicFrame = useRef<number | null>(null)
 
   // Tooltip
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
@@ -134,6 +137,70 @@ export function MapCanvas({
   }, [allEvents, cutoffRel])
 
   const transform = `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`
+
+  useEffect(() => {
+    if (!cinematicEnabled || dragging.current) return
+
+    const size = CANVAS_SIZE
+    const center = size / 2
+
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+
+    const getTarget = () => {
+      const recentCombat = allEvents
+        .filter(e => e.tsRel <= cutoffRel && e.tsRel >= cutoffRel - 6000)
+        .filter(e => e.event === 'Kill' || e.event === 'BotKill' || e.event === 'KilledByStorm')
+
+      if (recentCombat.length > 0) {
+        const last = recentCombat[recentCombat.length - 1]
+        return { x: last.px, y: last.py, zoom: 1.35 }
+      }
+
+      const selectedPositions = players
+        .filter(player => selectedPlayers.has(player.userId))
+        .map(player => {
+          const recent = player.events.filter(e =>
+            (e.event === 'Position' || e.event === 'BotPosition') && e.tsRel <= cutoffRel
+          )
+          return recent.length ? recent[recent.length - 1] : null
+        })
+        .filter(Boolean) as ProcessedEvent[]
+
+      if (selectedPositions.length > 0) {
+        const sum = selectedPositions.reduce((acc, curr) => ({
+          x: acc.x + curr.px,
+          y: acc.y + curr.py,
+        }), { x: 0, y: 0 })
+        const avg = {
+          x: sum.x / selectedPositions.length,
+          y: sum.y / selectedPositions.length,
+        }
+        return { x: avg.x, y: avg.y, zoom: 1.1 }
+      }
+
+      return { x: center, y: center, zoom: 1 }
+    }
+
+    const target = getTarget()
+    if (!target) return
+
+    const step = () => {
+      setPan(current => ({
+        x: lerp(current.x, center / target.zoom - target.x, 0.08),
+        y: lerp(current.y, center / target.zoom - target.y, 0.08),
+      }))
+      setZoom(current => lerp(current, target.zoom, 0.08))
+      cinematicFrame.current = window.requestAnimationFrame(step)
+    }
+
+    cinematicFrame.current = window.requestAnimationFrame(step)
+    return () => {
+      if (cinematicFrame.current != null) {
+        window.cancelAnimationFrame(cinematicFrame.current)
+        cinematicFrame.current = null
+      }
+    }
+  }, [cinematicEnabled, cutoffRel, allEvents, players, selectedPlayers])
 
   return (
     <div

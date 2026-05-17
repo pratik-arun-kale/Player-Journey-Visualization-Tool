@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import type { ProcessedEvent } from '../types'
+import { getEventsUpTo } from '../replay/eventFeedStore'
 import '../styles/EventLog.css'
 
 interface Player {
@@ -13,6 +14,7 @@ interface EventLogProps {
   currentTime: number // ms
   isPlaying: boolean
   players: Player[]
+  onSeek?: (ms: number) => void
 }
 
 function formatTime(ms: number): string {
@@ -80,18 +82,12 @@ function getEventIcon(eventType: string): string {
   }
 }
 
-export function EventLog({ events, currentTime, isPlaying, players }: EventLogProps) {
+export function EventLog({ events, currentTime, isPlaying, players, onSeek }: EventLogProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const shouldAutoScroll = useRef(true)
 
   // Filter events that have occurred up to currentTime
-  // NOTE: currentTime is relative (tsRel), not absolute (tsMs)
-  const visibleEvents = events.filter(e => {
-    // Only show non-position events
-    if (e.event === 'Position' || e.event === 'BotPosition') return false
-    // Compare using tsRel (relative time), not tsMs (absolute time)
-    return e.tsRel <= currentTime
-  })
+  const visibleEvents = getEventsUpTo(events, currentTime)
 
 
 
@@ -103,6 +99,10 @@ export function EventLog({ events, currentTime, isPlaying, players }: EventLogPr
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
   }, [visibleEvents.length, isPlaying])
+
+  // Brief highlight for newest event
+  const newest = visibleEvents.length ? visibleEvents[visibleEvents.length - 1] : null
+  const isNew = (ev: ProcessedEvent) => newest ? (currentTime - newest.tsRel) < 2500 && ev === newest : false
 
   // Detect manual scroll to disable auto-scroll temporarily
   const handleScroll = () => {
@@ -133,10 +133,10 @@ export function EventLog({ events, currentTime, isPlaying, players }: EventLogPr
             {visibleEvents.map((event, index) => (
               <li
                 key={`${event.tsMs}-${index}`}
-                className="event-item"
-                style={{
-                  borderLeftColor: getEventColor(event.event),
-                }}
+                className={`event-item ${isNew(event) ? 'event-new' : ''}`}
+                style={{ borderLeftColor: getEventColor(event.event) }}
+                onClick={() => onSeek && onSeek(event.tsRel)}
+                title={`${formatTime(event.tsRel)} · ${event.event}`}
               >
                 <div className="event-meta">
                   <span className="event-time">{formatTime(event.tsRel)}</span>

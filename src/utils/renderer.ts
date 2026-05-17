@@ -1,4 +1,5 @@
 import type { ProcessedEvent, Player, Layers } from '../types'
+import { interpolatePosition } from '../replay/interpolation'
 
 const CANVAS_SIZE = 1024
 
@@ -77,32 +78,43 @@ export function drawPaths(
   for (const player of players) {
     if (!selectedPlayers.has(player.userId)) continue
     if (player.isBot && !showBots) continue
-
     const posEvents = player.events.filter(
-      e => (e.event === 'Position' || e.event === 'BotPosition') && e.tsRel <= cutoffRel
-    )
-    if (posEvents.length < 2) continue
+      e => (e.event === 'Position' || e.event === 'BotPosition')
+    ).map(e => ({ tsRel: e.tsRel, px: e.px, py: e.py }))
+    if (posEvents.length < 1) continue
+
+    // Interpolated current position
+    const current = interpolatePosition(posEvents, cutoffRel)
+    // Build path up to cutoffRel (include interpolated endpoint)
+    const pathPoints: { x: number; y: number }[] = []
+    for (const p of posEvents) {
+      if (p.tsRel <= cutoffRel) pathPoints.push({ x: p.px * scale, y: p.py * scale })
+      else break
+    }
+    if (current) pathPoints.push({ x: current.x * scale, y: current.y * scale })
+
+    if (pathPoints.length < 2) continue
 
     ctx.save()
     ctx.beginPath()
     ctx.strokeStyle = player.color
     ctx.lineWidth   = player.isBot ? 1 : 2
-    ctx.globalAlpha = player.isBot ? 0.25 : 0.7
+    ctx.globalAlpha = player.isBot ? 0.25 : 0.75
     ctx.lineJoin    = 'round'
     ctx.lineCap     = 'round'
 
-    ctx.moveTo(posEvents[0].px * scale, posEvents[0].py * scale)
-    for (let i = 1; i < posEvents.length; i++) {
-      ctx.lineTo(posEvents[i].px * scale, posEvents[i].py * scale)
+    ctx.moveTo(pathPoints[0].x, pathPoints[0].y)
+    for (let i = 1; i < pathPoints.length; i++) {
+      ctx.lineTo(pathPoints[i].x, pathPoints[i].y)
     }
     ctx.stroke()
 
-    // Current position dot
-    const last = posEvents[posEvents.length - 1]
+    // Current interpolated dot with glow
     const r = player.isBot ? 4 : 7
     ctx.globalAlpha = 1
     ctx.beginPath()
-    ctx.arc(last.px * scale, last.py * scale, r, 0, Math.PI * 2)
+    const last = pathPoints[pathPoints.length - 1]
+    ctx.arc(last.x, last.y, r, 0, Math.PI * 2)
     ctx.fillStyle    = player.color
     ctx.shadowColor  = player.color
     ctx.shadowBlur   = 12
@@ -119,7 +131,8 @@ export function drawEventMarkers(
   ctx: CanvasRenderingContext2D,
   events: ProcessedEvent[],
   layers: Layers,
-  size: number
+  size: number,
+  cutoffRel: number
 ) {
   const scale = size / CANVAS_SIZE
   const nonPos = events.filter(
@@ -131,6 +144,24 @@ export function drawEventMarkers(
     const y = e.py * scale
     ctx.save()
 
+    // Persistence / fade logic
+    const age = Math.max(0, cutoffRel - e.tsRel)
+    const DUR_KILL = 10000
+    const DUR_LOOT = 5000
+    const DUR_STORM = 10000
+    let dur = 8000
+    if (e.event === 'Loot') dur = DUR_LOOT
+    if (e.event === 'KilledByStorm') dur = DUR_STORM
+    if (e.event === 'Kill' || e.event === 'BotKill') dur = DUR_KILL
+
+    const progress = Math.min(1, age / dur)
+    const alpha = Math.max(0.16, 1 - progress)
+    ctx.globalAlpha = alpha
+
+    const pulse = e.event === 'Kill' || e.event === 'BotKill'
+      ? 1 + Math.sin(Math.min(age, 1200) / 160) * 0.18
+      : 1
+
     switch (e.event) {
       case 'Kill':
       case 'BotKill': {
@@ -140,16 +171,16 @@ export function drawEventMarkers(
         ctx.fillStyle   = 'rgba(255,51,51,0.18)'
         ctx.lineWidth   = 2
         ctx.shadowColor = c
-        ctx.shadowBlur  = 8
+        ctx.shadowBlur  = 12
         ctx.beginPath()
-        ctx.arc(x, y, MARKER_SIZE, 0, Math.PI * 2)
+        ctx.arc(x, y, MARKER_SIZE * pulse, 0, Math.PI * 2)
         ctx.fill()
         ctx.stroke()
         // ✕ cross
         ctx.lineWidth = 1.8
         ctx.beginPath()
-        ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4)
-        ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4)
+        ctx.moveTo(x - 4 * pulse, y - 4 * pulse); ctx.lineTo(x + 4 * pulse, y + 4 * pulse)
+        ctx.moveTo(x + 4 * pulse, y - 4 * pulse); ctx.lineTo(x - 4 * pulse, y + 4 * pulse)
         ctx.stroke()
         break
       }
@@ -230,5 +261,5 @@ export function renderFrame(
     drawPaths(ctx, players, selectedPlayers, cutoffRel, layers.bots, canvasSize)
   }
 
-  drawEventMarkers(ctx, visible, layers, canvasSize)
+  drawEventMarkers(ctx, visible, layers, canvasSize, cutoffRel)
 }
