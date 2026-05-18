@@ -61,7 +61,7 @@ async function computeMapAnalyticsChunked(
   const movementHeatmap = buildGrid(gridSize)
   const lootHeatmap = buildGrid(gridSize)
   const combatHeatmap = buildGrid(gridSize)
-  const eventCells: Record<string, { x: number; y: number; count: number; loot: number; combat: number }> = {}
+  const eventCells: Record<string, { x: number; y: number; count: number; loot: number; combat: number; score: number }> = {}
   const visitSets: Record<string, Set<string>> = {}
 
   const chunkSize = 600
@@ -72,7 +72,7 @@ async function computeMapAnalyticsChunked(
       const { bx, by } = bucket(e, gridSize)
       const key = cellKey(bx, by)
       if (!eventCells[key]) {
-        eventCells[key] = { x: bx, y: by, count: 0, loot: 0, combat: 0 }
+        eventCells[key] = { x: bx, y: by, count: 0, loot: 0, combat: 0, score: 0 }
       }
       eventCells[key].count += 1
       if (e.event === 'Loot') eventCells[key].loot += 1
@@ -89,7 +89,15 @@ async function computeMapAnalyticsChunked(
     await nextIdle()
   }
 
-  const cells = Object.values(eventCells)
+  const cells = Object.values(eventCells).map(cell => ({
+    x: cell.x,
+    y: cell.y,
+    count: cell.count,
+    loot: cell.loot,
+    combat: cell.combat,
+    score: cell.count + cell.loot * 2 + cell.combat * 3,
+  }))
+
   const deadZones = cells
     .filter(cell => movementHeatmap[cell.y][cell.x] === 0)
     .sort((a, b) => a.combat - b.combat || a.loot - b.loot || a.count - b.count)
@@ -99,7 +107,6 @@ async function computeMapAnalyticsChunked(
     .filter(cell => cell.count > 3)
     .sort((a, b) => b.count - a.count)
     .slice(0, 12)
-    .map(cell => ({ ...cell, score: cell.count + cell.loot * 2 + cell.combat * 3 }))
 
   const underused = cells
     .filter(cell => movementHeatmap[cell.y][cell.x] > 0 && movementHeatmap[cell.y][cell.x] < 4)
