@@ -3,6 +3,10 @@ import { interpolatePosition } from '../replay/interpolation'
 
 const CANVAS_SIZE = 1024
 
+function getCanvasPoint(e: ProcessedEvent) {
+  return { x: e.px, y: e.py }
+}
+
 // ── Heatmap ───────────────────────────────────────────────────────────────────
 
 export function drawHeatmap(
@@ -10,9 +14,11 @@ export function drawHeatmap(
   events: ProcessedEvent[],
   size: number
 ) {
-  const posEvents = events.filter(
-    e => e.event === 'Position' || e.event === 'BotPosition'
-  )
+  const posEvents = events
+    .filter(e => e.event === 'Position' || e.event === 'BotPosition')
+    .map(getCanvasPoint)
+    .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y))
+
   if (posEvents.length < 5) return
 
   const GRID = 40
@@ -21,10 +27,13 @@ export function drawHeatmap(
   const scale = size / CANVAS_SIZE
   const grid = new Float32Array(GRID * GRID)
 
-  for (const e of posEvents) {
-    const gx = Math.min(GRID - 1, Math.floor((e.px * scale) / cellW))
-    const gy = Math.min(GRID - 1, Math.floor((e.py * scale) / cellH))
-    grid[gy * GRID + gx]++
+  for (const point of posEvents) {
+    const gx = Math.floor((point.x * scale) / cellW)
+    const gy = Math.floor((point.y * scale) / cellH)
+    if (!Number.isFinite(gx) || !Number.isFinite(gy)) continue
+    const ix = Math.max(0, Math.min(GRID - 1, gx))
+    const iy = Math.max(0, Math.min(GRID - 1, gy))
+    grid[iy * GRID + ix]++
   }
 
   // Gaussian blur pass (3x3 box)
@@ -78,20 +87,27 @@ export function drawPaths(
   for (const player of players) {
     if (!selectedPlayers.has(player.userId)) continue
     if (player.isBot && !showBots) continue
-    const posEvents = player.events.filter(
-      e => (e.event === 'Position' || e.event === 'BotPosition')
-    ).map(e => ({ tsRel: e.tsRel, px: e.px, py: e.py }))
+    const posEvents = player.events
+      .filter(e => e.event === 'Position' || e.event === 'BotPosition')
+      .map(e => ({
+        tsRel: e.tsRel,
+        px: getCanvasPoint(e).x,
+        py: getCanvasPoint(e).y,
+      }))
+      .filter(p => Number.isFinite(p.px) && Number.isFinite(p.py))
+
     if (posEvents.length < 1) continue
 
-    // Interpolated current position
     const current = interpolatePosition(posEvents, cutoffRel)
-    // Build path up to cutoffRel (include interpolated endpoint)
     const pathPoints: { x: number; y: number }[] = []
     for (const p of posEvents) {
-      if (p.tsRel <= cutoffRel) pathPoints.push({ x: p.px * scale, y: p.py * scale })
-      else break
+      if (p.tsRel <= cutoffRel) {
+        pathPoints.push({ x: p.px * scale, y: p.py * scale })
+      } else break
     }
-    if (current) pathPoints.push({ x: current.x * scale, y: current.y * scale })
+    if (current && Number.isFinite(current.x) && Number.isFinite(current.y)) {
+      pathPoints.push({ x: current.x * scale, y: current.y * scale })
+    }
 
     if (pathPoints.length < 2) continue
 
@@ -140,8 +156,10 @@ export function drawEventMarkers(
   )
 
   for (const e of nonPos) {
-    const x = e.px * scale
-    const y = e.py * scale
+    const point = getCanvasPoint(e)
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue
+    const x = point.x * scale
+    const y = point.y * scale
     ctx.save()
 
     // Persistence / fade logic

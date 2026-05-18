@@ -3,7 +3,7 @@ import type {
 } from '../types'
 import {
   parseRealMatchId, isHuman, processEvents,
-  playerColor, BOT_COLOR, HUMAN_COLORS
+  normalizeEventsByWorld, playerColor, BOT_COLOR, HUMAN_COLORS
 } from './mapUtils'
 
 // ── Build MatchGroup index from matches.json ──────────────────────────────────
@@ -58,12 +58,15 @@ export function processPlayerFile(
     return { userId: '', isBot: false, color: '#fff', events: [] }
   }
 
-  const userId = raw[0].user_id
+  const withoutRel = processEvents(raw, CANVAS_SIZE)
+  if (!withoutRel.length) {
+    return { userId: '', isBot: false, color: '#fff', events: [] }
+  }
+
+  const userId = withoutRel[0].userId
   const isBot  = !isHuman(userId)
   const color  = playerColor(colorIndex, isBot)
-
-  const withoutRel = processEvents(raw, CANVAS_SIZE)
-  const tsMin = Math.min(...withoutRel.map(e => e.tsMs))
+  const tsMin   = Math.min(...withoutRel.map(e => e.tsMs))
 
   const events: ProcessedEvent[] = withoutRel
     .map(e => ({ ...e, tsRel: e.tsMs - tsMin }))
@@ -111,11 +114,21 @@ function detectMapByMajority(files: PlayerFile[]): MapIdOrUnknown {
 
 // ── Merge multiple PlayerFiles into a single match dataset ───────────────────
 
+export interface CoordinateBounds {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+  width: number
+  height: number
+}
+
 export interface MatchData {
   mapId: MapIdOrUnknown
   players: Player[]
   allEvents: ProcessedEvent[]   // merged + globally re-normalised
   durationMs: number
+  coordBounds?: CoordinateBounds
 }
 
 export function mergeMatchFiles(files: PlayerFile[]): MatchData {
@@ -123,16 +136,9 @@ export function mergeMatchFiles(files: PlayerFile[]): MatchData {
     return { mapId: 'Unknown', players: [], allEvents: [], durationMs: 0 }
   }
 
-  let humanIdx = 0
-
-  const players: Player[] = files
-    .filter(f => f.events.length > 0)
-    .map((f) => {
-      const uid = f.events[0].user_id
-      const isBot = !isHuman(uid)
-      const idx = isBot ? -1 : humanIdx++
-      return processPlayerFile(f, idx)
-    })
+  const processedPlayers = files.map((f) => processPlayerFile(f, -1))
+  const players = processedPlayers
+    .filter(p => p.events.length > 0)
     // sort: humans first, then bots
     .sort((a, b) => (a.isBot ? 1 : 0) - (b.isBot ? 1 : 0))
 
@@ -159,12 +165,21 @@ export function mergeMatchFiles(files: PlayerFile[]): MatchData {
     }
   }
 
+  const coordBounds = normalizeEventsByWorld(allRaw, CANVAS_SIZE)
+
   const allEvents = allRaw
     .map(e => ({ ...e, tsRel: e.tsMs - globalMin }))
     .sort((a, b) => a.tsRel - b.tsRel)
 
-  // Detect map using majority voting
   const mapId = detectMapByMajority(files)
+  const eventCount = Array.isArray(allEvents) ? allEvents.length : 0
+  console.info(
+    `loadMatch: loaded ${eventCount} events from ${players.length} players, map=${mapId} ` +
+      `(${coordBounds.width.toFixed(1)}x${coordBounds.height.toFixed(1)} bounds)`
+  )
+  console.log('Detected mapId:', mapId)
+  console.log('Events count:', eventCount)
+
   if (mapId === 'Unknown') {
     // silently handle unknown map in production
   }
@@ -174,5 +189,6 @@ export function mergeMatchFiles(files: PlayerFile[]): MatchData {
     players,
     allEvents,
     durationMs: globalMax - globalMin,
+    coordBounds,
   }
 }

@@ -64,9 +64,13 @@ export interface ProcessedEvent {
   userId: string
   isBot: boolean
   mapId: MapId
-  /** pixel X on 1024×1024 canvas, from map_x */
+  /** original world coordinate X from the replay file */
+  worldX: number
+  /** original world coordinate Z from the replay file */
+  worldZ: number
+  /** normalized pixel X on a 1024×1024 canvas derived from world coordinates */
   px: number
-  /** pixel Y on 1024×1024 canvas, from map_y */
+  /** normalized pixel Y on a 1024×1024 canvas derived from world coordinates */
   py: number
   /** absolute ms timestamp parsed from ts string */
   tsMs: number

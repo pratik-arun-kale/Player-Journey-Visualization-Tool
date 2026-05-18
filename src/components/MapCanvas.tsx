@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import type { Player, ProcessedEvent, Layers, MapId, MapIdOrUnknown } from '../types'
 import { renderFrame } from '../utils/renderer'
 import { ReplayLegend } from './ReplayLegend'
@@ -41,9 +41,9 @@ export function MapCanvas({
     })
   }, [])
 
-  // Only render map if we have a known map, replay data, and are not loading
-  const hasKnownMap = mapId && mapId !== 'Unknown' && MINIMAP_SRC[mapId]
-  const canRender = hasMatch && hasKnownMap && !isLoading && (players.length > 0 || allEvents.length > 0)
+  // Render partial replays even when the map has not been detected.
+  const hasMinimap = mapId && mapId !== 'Unknown' && Boolean(MINIMAP_SRC[mapId as MapId])
+  const canRender = hasMatch && !isLoading && allEvents.length > 0
 
   // Zoom / pan
   const [zoom, setZoom] = useState(1)
@@ -54,6 +54,7 @@ export function MapCanvas({
 
   // Tooltip
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
+  const [renderError, setRenderError] = useState<string | null>(null)
 
   // Hovered player from legend — used to boost opacity on canvas
   const [hoveredPlayer, setHoveredPlayer] = useState<string | null>(null)
@@ -65,22 +66,26 @@ export function MapCanvas({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // If a player is hovered from the legend, temporarily boost their path visibility
-    let effectivePlayers = players
-    if (hoveredPlayer) {
-      effectivePlayers = players.map(p =>
-        p.userId === hoveredPlayer
-          ? { ...p, color: p.color }   // keep color; renderer checks selectedPlayers for visibility
-          : p
-      )
-      // Add hovered player to the selected set temporarily
-      const boostedSelected = new Set(selectedPlayers)
-      boostedSelected.add(hoveredPlayer)
-      renderFrame(ctx, CANVAS_SIZE, allEvents, effectivePlayers, boostedSelected, cutoffRel, layers)
-      return
+    try {
+      // If a player is hovered from the legend, temporarily boost their path visibility
+      if (hoveredPlayer) {
+        const effectivePlayers = players.map(p =>
+          p.userId === hoveredPlayer
+            ? { ...p, color: p.color }
+            : p
+        )
+        const boostedSelected = new Set(selectedPlayers)
+        boostedSelected.add(hoveredPlayer)
+        renderFrame(ctx, CANVAS_SIZE, allEvents, effectivePlayers, boostedSelected, cutoffRel, layers)
+      } else {
+        renderFrame(ctx, CANVAS_SIZE, allEvents, players, selectedPlayers, cutoffRel, layers)
+      }
+      setRenderError(null)
+    } catch (error) {
+      console.error('MapCanvas render failed, recovering partial replay', error)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      setRenderError('Partial telemetry loaded; some invalid data was skipped.')
     }
-
-    renderFrame(ctx, CANVAS_SIZE, allEvents, players, selectedPlayers, cutoffRel, layers)
   }, [allEvents, players, selectedPlayers, cutoffRel, layers, hoveredPlayer])
 
   // Zoom
@@ -90,7 +95,16 @@ export function MapCanvas({
   const resetView  = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }) }, [])
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    applyZoom(e.deltaY < 0 ? 0.2 : -0.2)
+    if (e.ctrlKey || e.metaKey) {
+      applyZoom(e.deltaY < 0 ? 0.2 : -0.2)
+      return
+    }
+
+    const scrollAmount = Math.sign(e.deltaY) * 24
+    setPan(current => ({
+      x: current.x + (e.shiftKey ? scrollAmount : 0),
+      y: current.y + (e.shiftKey ? 0 : scrollAmount),
+    }))
   }, [applyZoom])
 
   // Pan
@@ -108,6 +122,29 @@ export function MapCanvas({
   }, [zoom])
   const stopDrag = useCallback(() => { dragging.current = false }, [])
 
+  const getEventCanvasPoint = useCallback((ev: ProcessedEvent) => {
+    return { x: ev.px, y: ev.py }
+  }, [])
+
+  const rendererStats = useMemo(() => {
+    const total = allEvents.length
+    const valid = allEvents.filter(e => Number.isFinite(e.px) && Number.isFinite(e.py)).length
+    const invalid = total - valid
+    return { total, valid, invalid }
+  }, [allEvents])
+
+  const mapSize = useMemo(() => {
+    const base = 720
+    const safeZoom = Number.isFinite(zoom) ? zoom : 1
+    return Math.max(520, Math.min(1280, Math.round(base * safeZoom)))
+  }, [zoom])
+
+  const transform = useMemo(() => {
+    const safePanX = Number.isFinite(pan.x) ? pan.x : 0
+    const safePanY = Number.isFinite(pan.y) ? pan.y : 0
+    return `translate3d(${safePanX}px, ${safePanY}px, 0)`
+  }, [pan])
+
   // Tooltip on transparent hit layer
   const onHitMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current
@@ -121,7 +158,9 @@ export function MapCanvas({
     for (const ev of allEvents) {
       if (ev.event === 'Position' || ev.event === 'BotPosition') continue
       if (ev.tsRel > cutoffRel) continue
-      const d = Math.hypot(ev.px - mx, ev.py - my)
+      const point = getEventCanvasPoint(ev)
+      if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue
+      const d = Math.hypot(point.x - mx, point.y - my)
       if (d < nearDist) { nearDist = d; nearest = ev }
     }
     if (nearest) {
@@ -134,9 +173,7 @@ export function MapCanvas({
     } else {
       setTooltip(null)
     }
-  }, [allEvents, cutoffRel])
-
-  const transform = `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`
+  }, [allEvents, cutoffRel, getEventCanvasPoint])
 
   useEffect(() => {
     if (!cinematicEnabled || dragging.current) return
@@ -167,10 +204,13 @@ export function MapCanvas({
         .filter(Boolean) as ProcessedEvent[]
 
       if (selectedPositions.length > 0) {
-        const sum = selectedPositions.reduce((acc, curr) => ({
-          x: acc.x + curr.px,
-          y: acc.y + curr.py,
-        }), { x: 0, y: 0 })
+        const sum = selectedPositions.reduce((acc, curr) => {
+          const point = getEventCanvasPoint(curr)
+          return {
+            x: acc.x + point.x,
+            y: acc.y + point.y,
+          }
+        }, { x: 0, y: 0 })
         const avg = {
           x: sum.x / selectedPositions.length,
           y: sum.y / selectedPositions.length,
@@ -200,7 +240,7 @@ export function MapCanvas({
         cinematicFrame.current = null
       }
     }
-  }, [cinematicEnabled, cutoffRel, allEvents, players, selectedPlayers])
+  }, [cinematicEnabled, cutoffRel, allEvents, players, selectedPlayers, getEventCanvasPoint])
 
   return (
     <div
@@ -223,21 +263,24 @@ export function MapCanvas({
       ) : null}
 
       {/* Map + overlay — ONLY render if canRender is true (hasKnownMap guarantees mapId !== 'Unknown') */}
-      {canRender && mapId && (
+      {canRender && (
         <div
           className="map-wrap"
-          style={{ transform, display: 'block' }}
+          style={{ transform, width: `${mapSize}px`, height: `${mapSize}px` }}
           onMouseDown={onMouseDown}
           onWheel={handleWheel}
         >
-          {/* Minimap — loaded from /public/minimaps/ automatically */}
-          <img
-            className="map-img"
-            src={MINIMAP_SRC[mapId as MapId]}
-            alt={mapId}
-            draggable={false}
-            key={mapId}  // Force re-render if mapId changes
-          />
+          {hasMinimap ? (
+            <img
+              className="map-img"
+              src={MINIMAP_SRC[mapId as MapId]}
+              alt={mapId}
+              draggable={false}
+              key={mapId}  // Force re-render if mapId changes
+            />
+          ) : (
+            <div className="map-fallback" />
+          )}
 
           {/* Canvas — pointer-events none so mouse events pass through */}
           <canvas
@@ -255,7 +298,10 @@ export function MapCanvas({
             onMouseLeave={() => setTooltip(null)}
           />
 
-          <div className="map-label">{mapId.toUpperCase()}</div>
+          <div className="map-label">{(mapId || 'Unknown').toUpperCase()}</div>
+          {renderError && (
+            <div className="render-warning">{renderError}</div>
+          )}
         </div>
       )}
 

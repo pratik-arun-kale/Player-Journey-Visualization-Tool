@@ -351,16 +351,60 @@ export function computeMapAnalytics(allEvents: ProcessedEvent[]): MapAnalytics {
   }
 }
 
-export function computeMatchAnalytics(players: Player[], allEvents: ProcessedEvent[], durationMs: number, mapId: MapIdOrUnknown | undefined): MatchAnalytics {
-  const playerData = players.map(player => computePlayerAnalytics(player, allEvents, durationMs))
-  const mapData = computeMapAnalytics(allEvents)
-  const summary = {
-    playerCount: players.length,
-    activePlayers: players.filter(p => !p.isBot).length,
-    totalKills: allEvents.filter(e => e.event === 'Kill' || e.event === 'BotKill').length,
-    totalLoot: allEvents.filter(e => e.event === 'Loot').length,
-    durationMs,
-    mapId,
+export function createEmptyMatchAnalytics(mapId: MapIdOrUnknown | undefined, durationMs: number): MatchAnalytics {
+  return {
+    players: [],
+    map: {
+      gridSize: GRID_SIZE,
+      deadZones: [],
+      hotspots: [],
+      chokepoints: [],
+      underused: [],
+      movementHeatmap: buildGrid(),
+      lootHeatmap: buildGrid(),
+      combatHeatmap: buildGrid(),
+      summary: {
+        totalEvents: 0,
+        totalLoot: 0,
+        totalCombat: 0,
+        totalVisitCells: 0,
+        deadZoneCount: 0,
+        hotspotCount: 0,
+      },
+    },
+    summary: {
+      playerCount: 0,
+      activePlayers: 0,
+      totalKills: 0,
+      totalLoot: 0,
+      durationMs,
+      mapId,
+    },
   }
-  return { players: playerData, map: mapData, summary }
+}
+
+export function computeMatchAnalytics(players: Player[] | undefined, allEvents: ProcessedEvent[] | undefined, durationMs: number, mapId: MapIdOrUnknown | undefined): MatchAnalytics {
+  if (!Array.isArray(players) || !Array.isArray(allEvents)) {
+    console.warn('computeMatchAnalytics: invalid players or events', { players, allEvents })
+    return createEmptyMatchAnalytics(mapId, durationMs)
+  }
+
+  try {
+    const safePlayers = players.filter(Boolean)
+    const safeEvents = allEvents.filter(Boolean)
+    const playerData = safePlayers.map(player => computePlayerAnalytics(player, safeEvents, durationMs))
+    const mapData = computeMapAnalytics(safeEvents)
+    const summary = {
+      playerCount: safePlayers.length,
+      activePlayers: safePlayers.filter(p => !p.isBot).length,
+      totalKills: safeEvents.filter(e => e.event === 'Kill' || e.event === 'BotKill').length,
+      totalLoot: safeEvents.filter(e => e.event === 'Loot').length,
+      durationMs,
+      mapId,
+    }
+    return { players: playerData, map: mapData, summary }
+  } catch (error) {
+    console.error('computeMatchAnalytics: failed to compute analytics', error)
+    return createEmptyMatchAnalytics(mapId, durationMs)
+  }
 }

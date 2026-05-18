@@ -1,4 +1,4 @@
-import type { MapId, ProcessedEvent, RawEvent } from '../types'
+import type { EventType, MapId, ProcessedEvent, RawEvent } from '../types'
 
 // ── Map configuration (from README) ──────────────────────────────────────────
 
@@ -16,6 +16,14 @@ export const MAP_CONFIG: Record<MapId, MapCfg> = {
 
 /** Source minimap PNGs are 1024×1024. We render on a canvas that can be any
  *  size; callers pass `canvasSize` to scale the result. */
+export function isValidMapId(value: unknown): value is MapId {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(MAP_CONFIG, value)
+}
+
+export function getSafeMapId(value: unknown): MapId {
+  return isValidMapId(value) ? value : 'AmbroseValley'
+}
+
 export function worldToPixel(
   x: number,
   z: number,
@@ -23,6 +31,10 @@ export function worldToPixel(
   canvasSize = 1024
 ): [number, number] {
   const cfg = MAP_CONFIG[mapId]
+  if (!cfg) {
+    console.warn(`worldToPixel: invalid mapId ${mapId}, defaulting to center`)
+    return [canvasSize / 2, canvasSize / 2]
+  }
   const u = (x - cfg.ox) / cfg.scale
   const v = (z - cfg.oz) / cfg.scale
   return [u * canvasSize, (1 - v) * canvasSize]
@@ -58,27 +70,149 @@ export function parseTsMs(ts: string): number {
 
 // ── Event processing ──────────────────────────────────────────────────────────
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+const EVENT_NORMALIZATION: Record<string, EventType> = {
+  'position': 'Position',
+  'botposition': 'BotPosition',
+  'kill': 'Kill',
+  'botkill': 'BotKill',
+  'botkilled': 'BotKill',
+  'killed': 'Killed',
+  'killedbystorm': 'KilledByStorm',
+  'loot': 'Loot',
+}
+
+function normalizeEventType(value: unknown): EventType {
+  if (typeof value !== 'string') return 'Position'
+  const normalized = value.trim().toLowerCase()
+  return EVENT_NORMALIZATION[normalized] ?? 'Position'
+}
+
+function parseSafeTsMs(ts: unknown, fallbackIndex: number, previousTsMs?: number): number {
+  const parsed = typeof ts === 'string' ? Date.parse(ts) : NaN
+  if (Number.isFinite(parsed)) return parsed
+  if (Number.isFinite(previousTsMs ?? NaN)) return (previousTsMs as number) + 1
+  return fallbackIndex * 50
+}
+
+export function sanitizeTelemetryData(rawEvents: RawEvent[]): RawEvent[] {
+  if (!Array.isArray(rawEvents)) return []
+
+  let invalidCount = 0
+  const cleaned: RawEvent[] = []
+
+  for (const e of rawEvents) {
+    if (!e || typeof e !== 'object') {
+      invalidCount++
+      continue
+    }
+
+    const x = Number(e.x)
+    const z = Number(e.z)
+    const userId = typeof e.user_id === 'string' ? e.user_id : ''
+    const ts = typeof e.ts === 'string' ? e.ts : ''
+    const mapId = isValidMapId(e.map_id) ? e.map_id : getSafeMapId(e.map_id)
+    const map_x = Number(e.map_x)
+    const map_y = Number(e.map_y)
+
+    const hasPosition = Number.isFinite(x) && Number.isFinite(z)
+    const hasMapCoords = Number.isFinite(map_x) && Number.isFinite(map_y)
+    const event = normalizeEventType(e.event)
+
+    if (!userId || (!hasPosition && !hasMapCoords)) {
+      invalidCount++
+      continue
+    }
+
+    cleaned.push({
+      ...e,
+      user_id: userId,
+      x,
+      z,
+      map_id: mapId,
+      map_x: hasMapCoords ? map_x : NaN,
+      map_y: hasMapCoords ? map_y : NaN,
+      event,
+      ts,
+    })
+  }
+
+  if (invalidCount > 0) {
+    console.warn(`sanitizeTelemetryData: dropped ${invalidCount} invalid events out of ${rawEvents.length}`)
+  }
+
+  return cleaned
+}
+
 export function processEvents(
   rawEvents: RawEvent[],
   canvasSize: number
 ): Omit<ProcessedEvent, 'tsRel'>[] {
-  return rawEvents.map((e) => {
-    // Prefer pre-computed map_x/map_y when available and in range;
-    // fall back to live calculation (handles different canvas sizes)
-    const scale = canvasSize / 1024
-    const px = e.map_x != null ? e.map_x * scale : worldToPixel(e.x, e.z, e.map_id, canvasSize)[0]
-    const py = e.map_y != null ? e.map_y * scale : worldToPixel(e.x, e.z, e.map_id, canvasSize)[1]
+  const cleaned = sanitizeTelemetryData(rawEvents)
+
+  let lastTsMs: number | undefined
+  return cleaned.map((e, index) => {
+    const safeMapId = getSafeMapId(e.map_id)
+    const [px, py] = Number.isFinite(e.x) && Number.isFinite(e.z)
+      ? worldToPixel(e.x, e.z, safeMapId, canvasSize)
+      : [canvasSize / 2, canvasSize / 2]
+
+    const tsMs = parseSafeTsMs(e.ts, index, lastTsMs)
+    lastTsMs = tsMs
 
     return {
-      userId:  e.user_id,
-      isBot:   !isHuman(e.user_id),
-      mapId:   e.map_id,
+      userId:   e.user_id,
+      isBot:    !isHuman(e.user_id),
+      mapId:    safeMapId,
+      worldX:   e.x,
+      worldZ:   e.z,
       px,
       py,
-      tsMs:    parseTsMs(e.ts),
-      event:   e.event,
+      tsMs,
+      event:    normalizeEventType(e.event),
     }
   })
+}
+
+export interface CoordinateBounds {
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+  width: number
+  height: number
+}
+
+export function normalizeEventsByWorld(
+  events: ProcessedEvent[],
+  canvasSize = 1024
+): CoordinateBounds {
+  const validWorldXs = events.filter(e => Number.isFinite(e.worldX)).map(e => e.worldX)
+  const validWorldZs = events.filter(e => Number.isFinite(e.worldZ)).map(e => e.worldZ)
+  const minX = validWorldXs.length ? Math.min(...validWorldXs) : 0
+  const maxX = validWorldXs.length ? Math.max(...validWorldXs) : 0
+  const minZ = validWorldZs.length ? Math.min(...validWorldZs) : 0
+  const maxZ = validWorldZs.length ? Math.max(...validWorldZs) : 0
+  const width = Math.max(1, maxX - minX)
+  const height = Math.max(1, maxZ - minZ)
+
+  for (const e of events) {
+    if (Number.isFinite(e.worldX) && Number.isFinite(e.worldZ)) {
+      const xNorm = clamp((e.worldX - minX) / width, 0, 1)
+      const zNorm = clamp((e.worldZ - minZ) / height, 0, 1)
+      e.px = clamp(xNorm * canvasSize, 0, canvasSize)
+      e.py = clamp((1 - zNorm) * canvasSize, 0, canvasSize)
+    } else {
+      e.px = canvasSize / 2
+      e.py = canvasSize / 2
+    }
+  }
+
+  console.info(`normalizeEventsByWorld: events=${events.length}, bounds=${width.toFixed(1)}x${height.toFixed(1)}`)
+  return { minX, maxX, minZ, maxZ, width, height }
 }
 
 // ── Formatting ────────────────────────────────────────────────────────────────

@@ -7,18 +7,27 @@ export function easeOutCubic(t: number) {
 }
 
 // Find surrounding position events and interpolate to get smooth position at time `ts`
-export function interpolatePosition(posEvents: { tsRel: number; px: number; py: number }[], ts: number) {
+function getPoint(pos: { px: number; py: number }) {
+  return { x: pos.px, y: pos.py }
+}
+
+export function interpolatePosition(
+  posEvents: { tsRel: number; px: number; py: number }[],
+  ts: number
+) {
   if (!posEvents || posEvents.length === 0) return null
 
   // If before first event
   if (ts <= posEvents[0].tsRel) {
-    return { x: posEvents[0].px, y: posEvents[0].py, t: 0 }
+    const firstPoint = getPoint(posEvents[0])
+    return { x: firstPoint.x, y: firstPoint.y, t: 0 }
   }
 
   // If after last event
   const last = posEvents[posEvents.length - 1]
   if (ts >= last.tsRel) {
-    return { x: last.px, y: last.py, t: 1 }
+    const lastPoint = getPoint(last)
+    return { x: lastPoint.x, y: lastPoint.y, t: 1 }
   }
 
   // Binary search for interval
@@ -26,7 +35,8 @@ export function interpolatePosition(posEvents: { tsRel: number; px: number; py: 
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2)
     if (posEvents[mid].tsRel === ts) {
-      return { x: posEvents[mid].px, y: posEvents[mid].py, t: 0 }
+      const midPoint = getPoint(posEvents[mid])
+      return { x: midPoint.x, y: midPoint.y, t: 0 }
     }
     if (posEvents[mid].tsRel < ts) lo = mid + 1
     else hi = mid - 1
@@ -38,5 +48,7 @@ export function interpolatePosition(posEvents: { tsRel: number; px: number; py: 
   const span = e2.tsRel - e1.tsRel
   const rawT = span > 0 ? (ts - e1.tsRel) / span : 0
   const t = easeOutCubic(Math.max(0, Math.min(1, rawT)))
-  return { x: lerp(e1.px, e2.px, t), y: lerp(e1.py, e2.py, t), t }
+  const p1 = getPoint(e1)
+  const p2 = getPoint(e2)
+  return { x: lerp(p1.x, p2.x, t), y: lerp(p1.y, p2.y, t), t }
 }
