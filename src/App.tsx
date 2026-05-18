@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
 import { useAppState } from './hooks/useAppState'
 import { useFileLoader } from './hooks/useFileLoader'
 import { usePlayback } from './hooks/usePlayback'
+import { formatMs } from './utils/mapUtils'
 
 import { Header }       from './components/Header'
 import { UploadZone }   from './components/UploadZone'
@@ -12,7 +13,9 @@ const Timeline = React.lazy(() => import('./components/Timeline').then(m => ({ d
 const StatsPanel = React.lazy(() => import('./components/StatsPanel').then(m => ({ default: m.StatsPanel })))
 const PlayerList = React.lazy(() => import('./components/StatsPanel').then(m => ({ default: m.PlayerList })))
 const EventLog = React.lazy(() => import('./components/EventLog').then(m => ({ default: m.EventLog })))
+const AdvancedAnalytics = React.lazy(() => import('./components/AdvancedAnalytics').then(m => ({ default: m.AdvancedAnalytics })))
 import { createCinematicController } from './replay/cinematicController'
+import { computeMatchAnalytics } from './analytics/analyticsEngine'
 
 import type { FilterMap, FilterDate, Layers } from './types'
 
@@ -33,6 +36,12 @@ export default function App() {
     state.durationMs,
     state.playSpeed,
     dispatch
+  )
+
+  const [viewMode, setViewMode] = useState<'map' | 'analytics'>('map')
+  const analytics = useMemo(
+    () => computeMatchAnalytics(state.players, state.allEvents, state.durationMs, state.mapId),
+    [state.players, state.allEvents, state.durationMs, state.mapId]
   )
 
   // Cinematic mode controller
@@ -127,39 +136,83 @@ export default function App() {
           />
         </aside>
 
-        {/* ── CENTER MAP ── */}
-        <React.Suspense fallback={<div className="empty-state"><div className="es-icon">⟳</div></div>}>
-          <MapCanvas
-            mapId={state.mapId}
-            players={state.players}
-            allEvents={state.allEvents}
-            selectedPlayers={state.selectedPlayers}
-            cutoffRel={state.timelineCurrent}
-            layers={state.layers}
-            hasMatch={!!state.activeMatchId}
-            isLoading={state.isLoadingMatch}
-            cinematicEnabled={cinematicEnabled}
-          />
-        </React.Suspense>
+        <main className="center-panel">
+          <div className="view-switch-bar">
+            <div className="view-buttons">
+              <button
+                className={`view-button ${viewMode === 'map' ? 'active' : ''}`}
+                onClick={() => setViewMode('map')}
+              >
+                Map View
+              </button>
+              <button
+                className={`view-button ${viewMode === 'analytics' ? 'active' : ''}`}
+                onClick={() => setViewMode('analytics')}
+              >
+                Analytics View
+              </button>
+            </div>
 
-        {/* ── RIGHT PANEL ── */}
+            <div className="view-actions">
+              <div className="view-action-group">
+                <button className="view-action-btn" onClick={rewind} title="Jump to beginning">⏮</button>
+                <button
+                  className={`view-action-btn ${state.isPlaying ? 'active' : ''}`}
+                  onClick={state.isPlaying ? pause : play}
+                  title={state.isPlaying ? 'Pause' : 'Play'}
+                >
+                  {state.isPlaying ? '⏸' : '▶'}
+                </button>
+                <button className="view-action-btn" onClick={() => seek(Math.min(state.durationMs, state.timelineCurrent + 250))} title="Step forward">➡</button>
+              </div>
+              <div className="view-action-meta">
+                {formatMs(state.timelineCurrent)} / {formatMs(state.durationMs)}
+              </div>
+            </div>
+          </div>
+
+          <div className="center-main">
+            <React.Suspense fallback={<div className="empty-state"><div className="es-icon">⟳</div></div>}>
+              {viewMode === 'map' ? (
+                <MapCanvas
+                  mapId={state.mapId}
+                  players={state.players}
+                  allEvents={state.allEvents}
+                  selectedPlayers={state.selectedPlayers}
+                  cutoffRel={state.timelineCurrent}
+                  layers={state.layers}
+                  hasMatch={!!state.activeMatchId}
+                  isLoading={state.isLoadingMatch}
+                  cinematicEnabled={cinematicEnabled}
+                />
+              ) : (
+                <AdvancedAnalytics analytics={analytics} />
+              )}
+            </React.Suspense>
+          </div>
+
+          <div className="center-footer">
+            <Timeline
+              current={state.timelineCurrent}
+              duration={state.durationMs}
+              isPlaying={state.isPlaying}
+              playSpeed={state.playSpeed}
+              onSeek={seek}
+              onPlay={play}
+              onPause={pause}
+              onRewind={rewind}
+              onSpeedChange={(v: number) => dispatch({ type: 'SET_PLAY_SPEED', value: v })}
+              events={state.allEvents.map(e => ({ tsRel: e.tsRel, event: e.event }))}
+              cinematicEnabled={cinematicEnabled}
+              onToggleCinematic={(v: boolean) => setCinematicEnabled(v)}
+            />
+          </div>
+        </main>
+
         <aside className="right-panel">
           <React.Suspense fallback={null}>
-            <div className="right-panel-timeline">
-              <Timeline
-                current={state.timelineCurrent}
-                duration={state.durationMs}
-                isPlaying={state.isPlaying}
-                playSpeed={state.playSpeed}
-                onSeek={seek}
-                onPlay={play}
-                onPause={pause}
-                onRewind={rewind}
-                onSpeedChange={(v: number) => dispatch({ type: 'SET_PLAY_SPEED', value: v })}
-                events={state.allEvents.map(e => ({ tsRel: e.tsRel, event: e.event }))}
-                cinematicEnabled={cinematicEnabled}
-                onToggleCinematic={(v: boolean) => setCinematicEnabled(v)}
-              />
+            <div className="panel-section">
+              <div className="panel-title">// Event Feed</div>
             </div>
 
             <div className="right-panel-main">
