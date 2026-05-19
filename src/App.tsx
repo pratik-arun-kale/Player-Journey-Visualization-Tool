@@ -8,7 +8,6 @@ import { generateMatchAnalytics, type AnalyticsPhase } from './analytics/analyti
 
 import { Header }       from './components/Header'
 import { UploadZone }   from './components/UploadZone'
-import { LayerToggles } from './components/LayerToggles'
 import { MatchList }    from './components/MatchList'
 import { ErrorBoundary } from './components/ErrorBoundary'
 const MapCanvas = React.lazy(() => import('./components/MapCanvas').then(m => ({ default: m.MapCanvas })))
@@ -19,7 +18,7 @@ const PlayerList = React.lazy(() => import('./components/StatsPanel').then(m => 
 const EventLog = React.lazy(() => import('./components/EventLog').then(m => ({ default: m.EventLog })))
 import { createCinematicController } from './replay/cinematicController'
 
-import type { FilterMap, FilterDate, Layers } from './types'
+import type { FilterMap, FilterDate } from './types'
 
 const MAP_DISPLAY: Record<string, string> = {
   AmbroseValley: 'AMBROSE',
@@ -200,11 +199,6 @@ export default function App() {
             <div className="panel-title">// Data Input</div>
             <UploadZone onFiles={(f: File[]) => loadFiles(f)} />
           </div>
-
-          <LayerToggles
-            layers={state.layers}
-            onToggle={(layer: keyof Layers) => dispatch({ type: 'TOGGLE_LAYER', layer })}
-          />
 
           <MatchList
             matches={filtered}

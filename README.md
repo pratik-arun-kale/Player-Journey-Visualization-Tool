@@ -1,126 +1,206 @@
-# LILA BLACK // ANALYST
+# Gameplay Telemetry Replay & Analytics Platform
 
-> A browser-based player-journey visualization tool for the LILA BLACK extraction shooter.
+> Replay visualization · telemetry intelligence · analytics dashboard
 
-![Tech](https://img.shields.io/badge/React-18-61DAFB?logo=react) ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript) ![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)
-
----
-
-## Live Demo
-
-> **[https://player-journey-visualization-tool-ebon.vercel.app](https://player-journey-visualization-tool-ebon.vercel.app/))**  ← deployed URL
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)
 
 ---
 
-## Quick Start
+## Project Overview
 
-```bash
-# 1. Install dependencies
-npm install
+This repository provides a client-side replay viewer for gameplay telemetry. The application loads replay-ready JSON, renders matches on a minimap, and exposes interactive telemetry analytics.
 
-# 2. Start dev server
-npm run dev
-# → http://localhost:3000
+Key capabilities:
 
-# 3. Build for production
-npm run build
+* timeline-based replay playback
+* zoomable minimap rendering
+* event marker overlays and player traces
+* heatmap analytics and map intelligence
+* on-demand analytics generation with staged progress
 
-# 4. Preview production build
-npm run preview
-```
-
-No environment variables required. The app is fully client-side.
+The frontend is intentionally lightweight: raw Parquet telemetry is converted externally into replay JSON via the provided Google Colab notebook.
 
 ---
 
-## How to Use the Tool
+## Features
 
-### Step 1 — Load your JSON data
-Click or drag files into the **"Data Input"** upload zone in the left panel.
-
-You need to load:
-- `matches.json` — the match index file (output of the Python pipeline)
-- Player JSON files — one or more `{user_id}_{match_id}.json` files
-
-You can load all files at once (multi-select or drag a whole folder's contents).
-
-### Step 2 — Load minimap images
-Drag the minimap PNG/JPG images from the `minimaps/` folder directly onto the dark map area in the centre:
-- `AmbroseValley_Minimap.png`
-- `GrandRift_Minimap.png`
-- `Lockdown_Minimap.jpg`
-
-The tool detects which map from the filename automatically.
-
-### Step 3 — Select a match
-The match list (bottom of the left panel) shows all matches grouped by `match_id`, filtered to only those whose player JSON files you have loaded. Click any match to activate it.
-
-### Step 4 — Explore
-
-| Feature | How |
-|---------|-----|
-| **Player paths** | Drawn automatically. Human paths are colour-coded; bot paths are orange. |
-| **Event markers** | ✕ red = kill, ● red = death, ◆ purple = storm death, ■ gold = loot |
-| **Heatmap** | Blue→red heat overlay showing movement density |
-| **Filter by map/date** | Dropdowns at the top of the match list |
-| **Layer toggles** | PATHS / KILLS / LOOT / STORM / HEAT / BOTS buttons |
-| **Timeline playback** | Scrub the bar or press ▶ to watch the match unfold in real time |
-| **Playback speed** | 0.25× to 10× |
-| **Show/hide players** | Click names in the right panel; ALL / NONE buttons |
-| **Zoom & pan** | Scroll wheel to zoom, drag to pan, ⊙ to reset |
-
----
-
-## Data Pipeline
-
-The tool reads the JSON files produced by the Python pre-processing script. To regenerate:
-
-```bash
-cd pipeline/
-pip install pyarrow pandas -r requirements.txt
-python process.py --input /path/to/player_data/ --output ../public/data/
-```
-
-This writes:
-- `public/data/matches.json` — index of all 1,243 player files
-- `public/data/{folder}/{player}_{match}.json` — one file per player-in-match
-
-> **Note:** For a hosted deployment, upload the output JSON files to your CDN or include them in the `public/data/` folder before building.
+* JSON replay upload with folder drag/drop
+* Match selection and map/date filtering
+* Interactive minimap playback with zoom/pan controls
+* Timeline scrubber and playback speed controls
+* Layer toggles for paths, kills, loot, storm, heat, and bots
+* Progressive analytics view with player and map metrics
+* Heatmap, hotspot, chokepoint, and dead-zone detection
+* Player playstyle scoring and movement analysis
+* Safe telemetry sanitization and coordinate normalization
+* Built-in static minimap assets for known maps
 
 ---
 
 ## Tech Stack
 
-| Layer | Choice | Reason |
-|-------|--------|--------|
-| Framework | React 18 + TypeScript | Type safety, component model |
-| Build | Vite 5 | Fast HMR, zero-config |
-| Rendering | HTML5 Canvas (2D) | Performant path drawing, heatmap blending |
-| State | `useReducer` | Predictable, no extra deps |
-| Styling | Plain CSS (custom properties) | Full control, no runtime overhead |
-| Hosting | Vercel / Netlify | Drop-in for Vite output |
+* React 18 — UI composition and lazy-loaded components
+* TypeScript — typed telemetry, rendering, and analytics code
+* Vite 5 — fast local development server and production build
+* HTML5 Canvas — efficient 2D rendering for the map overlay
+* CSS — custom theme and responsive interface styling
 
 ---
 
-## Project Structure
+## Installation & Setup
 
+Install dependencies:
+
+```bash
+npm install
 ```
-src/
-├── types/          # TypeScript interfaces for all data shapes
-├── utils/
-│   ├── mapUtils.ts    # Coord conversion, player colours, ts parsing
-│   ├── dataLoader.ts  # JSON → typed data structures
-│   └── renderer.ts    # Canvas drawing (paths, heatmap, markers)
-├── hooks/
-│   ├── useAppState.ts  # Central useReducer state machine
-│   ├── useFileLoader.ts # File drag-drop + JSON parsing
-│   └── usePlayback.ts   # rAF-based timeline animation
-└── components/
-    ├── Header.tsx
-    ├── UploadZone.tsx
-    ├── MatchList.tsx
-    ├── LayerToggles.tsx
-    ├── MapCanvas.tsx   # Minimap image + overlay canvas
-    ├── Timeline.tsx
-    └── StatsPanel.tsx  # Stats + player list
+
+Start the development server:
+
+```bash
+npm run dev
 ```
+
+Build for production:
+
+```bash
+npm run build
+```
+
+Preview the production bundle:
+
+```bash
+npm run preview
+```
+
+No backend services or environment variables are required for frontend execution.
+
+---
+
+## How to Use The App
+
+### Step 1 — Process Parquet Files
+
+Raw telemetry input should be converted before use. The frontend does not parse Parquet directly.
+
+Use the provided Google Colab notebook:
+
+https://colab.research.google.com/drive/1-Vxbe1GsLACg7VR8lOc92WGLIi1Ic31s#scrollTo=main
+
+Workflow:
+
+1. Upload raw `.parquet` gameplay files to the notebook.
+2. Extract telemetry events and normalize coordinates.
+3. Generate replay-ready JSON.
+4. Download the JSON output for upload.
+
+### Step 2 — Upload Replay JSON
+
+Open the left sidebar upload area and drag or select JSON files.
+
+The upload control supports folder drag/drop and validates replay JSON before parsing.
+
+After upload, available matches populate the sidebar list.
+
+### Step 3 — Open Replay
+
+Select a match from the sidebar to load it into the central replay canvas.
+
+The viewer renders player paths, event markers, heatmaps, and the map background.
+
+### Step 4 — Use Replay Controls
+
+* Play/pause the replay.
+* Scrub the timeline to move through match time.
+* Cycle playback speed between 0.1×, 0.25×, 0.5×, 1×, and 2×.
+* Toggle layer visibility for telemetry overlays.
+* Zoom and pan on the map for deeper inspection.
+
+### Step 5 — Open Analytics View
+
+Switch to Analytics View to compute match analytics.
+
+Analytics are generated on demand and provide:
+
+* player scoring and movement statistics
+* map heatmaps for movement, loot, and combat
+* hotspot and chokepoint detection
+* summary metrics for the active match
+
+---
+
+## Coordinate Mapping Approach
+
+The viewer normalizes raw world coordinates into a fixed 1024×1024 canvas.
+
+Implementation details:
+
+* raw world coordinates are validated and sanitized before rendering
+* per-match min/max normalization maps positions into pixel space
+* invalid positions are clamped to prevent off-map rendering
+* minimap backgrounds are selected from `public/minimaps/` for known maps
+
+This keeps rendering stable while preserving relative player movement and event placement.
+
+---
+
+## Architecture Overview
+
+```text
+Raw Parquet Telemetry
+    ↓
+Google Colab Preprocessing
+    ↓
+Replay JSON
+    ↓
+Upload Zone
+    ↓
+Match Loader + Map Renderer
+    ↓
+Analytics Engine
+```
+
+The frontend is organized as:
+
+* left sidebar — upload controls and match list
+* central panel — map canvas and timeline playback
+* right/analytics area — generated insights and player metrics
+
+---
+
+## Performance & Stability
+
+* Telemetry is sanitized and normalized before rendering.
+* Analytics load lazily with progressive phase updates.
+* The replay viewer maintains responsive playback under analysis.
+* Error boundaries isolate UI failures from the core replay flow.
+* The platform is replay-first, keeping visualization stable.
+
+---
+
+## Known Limitations
+
+* Raw Parquet preprocessing is external to this repository.
+* Coordinate normalization is approximate and depends on per-match bounds.
+* Analytics are client-side heuristics rather than backend models.
+* Map intelligence is currently limited to known built-in minimap assets.
+
+---
+
+## Future Improvements
+
+* calibrated world bounds for more precise projection
+* Web Worker-based analytics computation
+* GPU-accelerated heatmap rendering
+* richer temporal and team-level analytics
+* expanded map support and dynamic map assets
+
+---
+
+## Screenshots
+
+### Replay Viewer
+![Replay Viewer](./screenshots/replay.png)
+
+### Analytics Dashboard
+![Analytics](./screenshots/analytics.png)
