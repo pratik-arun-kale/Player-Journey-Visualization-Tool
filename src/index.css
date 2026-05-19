@@ -359,6 +359,7 @@ body {
   background: var(--bg2);
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 .left-panel  { width: var(--panel-w-left);  border-right: 1px solid var(--border); }
@@ -467,6 +468,216 @@ body {
   font-weight: 700;
   font-size: 11px;
   margin-top: 6px;
+}
+
+.upload-preprocess-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  margin-bottom: 10px;
+  border-radius: 18px;
+  background: rgba(10, 16, 26, 0.9);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 0 0 0 1px rgba(0,204,255,0.05), 0 16px 30px rgba(0,170,255,0.06);
+  overflow: hidden;
+}
+
+.upload-preprocess-card.collapsed .upload-preprocess-body {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.upload-preprocess-card.open .upload-preprocess-body {
+  max-height: 520px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.preprocess-header {
+  all: unset;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(0, 204, 255, 0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.preprocess-header:hover {
+  background: rgba(0, 204, 255, 0.16);
+}
+
+.preprocess-arrow {
+  font-family: var(--mono);
+  color: var(--accent);
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+
+.upload-preprocess-card.open .preprocess-arrow {
+  transform: rotate(90deg);
+}
+
+.preprocess-hint {
+  color: var(--text2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.upload-preprocess-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 18px;
+  transition: max-height 0.28s ease, opacity 0.22s ease;
+  overflow: hidden;
+}
+
+.upload-preprocess-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.upload-preprocess-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upload-preprocess-headline span {
+  color: #e8f8ff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.upload-preprocess-card p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text2);
+  margin: 0;
+}
+
+.upload-preprocess-card ul {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 0;
+  color: var(--text2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.upload-preprocess-card ul li {
+  margin-bottom: 6px;
+}
+
+.upload-preprocess-cta {
+  align-self: flex-start;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 16px;
+  color: #e9fbff;
+  background: linear-gradient(135deg, rgba(0,204,255,0.16), rgba(0,204,255,0.32));
+  border: 1px solid rgba(0,204,255,0.22);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: transform 0.15s ease, background 0.18s ease;
+}
+
+.upload-preprocess-cta:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, rgba(0,204,255,0.20), rgba(0,204,255,0.44));
+}
+
+.upload-preprocess-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.upload-preprocess-headline span {
+  color: #e8f8ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.preprocess-tooltip {
+  border: none;
+  background: rgba(255,255,255,0.05);
+  color: var(--text2);
+  font-size: 11px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  cursor: help;
+  transition: all 0.18s ease;
+}
+
+.preprocess-tooltip:hover {
+  color: #f8ffff;
+  background: rgba(0, 204, 255, 0.12);
+}
+
+.upload-preprocess-copy p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text2);
+  margin-top: 4px;
+}
+
+.upload-preprocess-card ul {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 10px 0 0;
+  color: var(--text2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.upload-preprocess-card ul li {
+  margin-bottom: 6px;
+}
+
+.upload-flow-line {
+  font-family: var(--mono);
+  color: #7edcff;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+
+.upload-preprocess-cta {
+  align-self: start;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 18px;
+  color: #e9fbff;
+  background: linear-gradient(135deg, rgba(0,204,255,0.16), rgba(0,204,255,0.32));
+  border: 1px solid rgba(0,204,255,0.25);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.upload-preprocess-cta:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, rgba(0,204,255,0.20), rgba(0,204,255,0.40));
 }
 
 /* Upload error banner */
